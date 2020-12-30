@@ -1,0 +1,828 @@
+---
+title: "Sex-bias Sup. revisions"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "~/Desktop/LabWork/Sexbias_final/Analysis/")
+rm(list=ls(all=TRUE)) 
+```
+
+This plot is to compare the fold enrichment of sex-biased genes on the X in various tissues using the oliver lab data. This corresponds to supplementary figure 1.
+
+```{r}
+source('Code/oliver_data_analysis.R')
+library(ggplot2)
+library(cowplot)
+
+#run DESeq for each tissue in the oliver lab dataset
+run_DESeq('Dmel','thorax',0.05)
+run_DESeq('Dmel','abdomen',0.05)
+run_DESeq('Dmel','viscera',0.05)
+run_DESeq('Dmel','gonad',0.05)
+
+run_DESeq('Dyak','thorax',0.05)
+run_DESeq('Dyak','abdomen',0.05)
+run_DESeq('Dyak','viscera',0.05)
+run_DESeq('Dyak','gonad',0.05)
+
+plot_mel <- make_plot("Dmel")
+plot_yak <- make_plot("Dyak")
+
+plot <- plot_grid(plot_mel, plot_yak, nrow=2, labels = c('D. melanogaster','D. yakuba'), scale = 0.8)
+ggsave( file ='Paper_figures_revision/Sup_Figure_1_test.pdf',plot,width = 10,height=9)
+
+
+```
+This is to generate supplementary figure 2
+```{r}
+source('Code/expression_patterns.R')
+
+species <- c('dmel', 'dsim', 'dyak')
+plot_mel <- comp_sbg_TPM('dmel') 
+plot_sim <- comp_sbg_TPM('dsim')
+plot_yak <- comp_sbg_TPM('dyak')
+library(cowplot)
+plot_final <-  plot_grid(plot_mel,plot_sim,plot_yak,nrow=3)
+
+#ggsave(file ='Basic_Gene_Exp_Patterns/Expression_Levels_allspecies.pdf',plot_final,width = 6,height=9)
+ggsave(file ='Paper_figures_revision/Sup_Figure_2.pdf',plot_final,width = 6,height=9)
+
+```
+
+This is to generate supplementary figure 3. Comparison of fold changes and qvalues between X and autosomes
+
+```{r}
+source('Code/expression_patterns.R')
+
+plot_m_mel <- make_plots_fcqval('m', 'dmel')
+plot_f_mel <- make_plots_fcqval('f', 'dmel')
+
+plot_m_sim <- make_plots_fcqval('m', 'dsim')
+plot_f_sim <- make_plots_fcqval('f', 'dsim')
+
+plot_m_yak <- make_plots_fcqval('m', 'dyak')
+plot_f_yak <- make_plots_fcqval('f', 'dyak')
+
+plot_mel <- plot_grid(plot_m_mel, plot_f_mel, nrow=1)
+plot_sim <- plot_grid(plot_m_sim, plot_f_sim, nrow=1)
+plot_yak <- plot_grid(plot_m_yak, plot_f_yak, nrow=1)
+
+plot <- plot_grid(plot_mel, plot_sim, plot_yak, nrow=3, labels = c('D. melanogaster', 'D. simulans', 'D. yakuba'), scale = 0.8)
+
+
+#ggsave(file ='Basic_Gene_Exp_Patterns/Fold_change_QVal.pdf', plot, width = 11, height=11)
+ggsave(file ='Paper_figures_revision/Sup_Figure_3_test.pdf', plot, width = 11, height=11)
+
+
+```
+
+
+This is to generate supplementary figure 4 which is a boxplot version of figure 4. 
+
+```{r}
+source('Code/supplementary_anova_figs.R')
+
+# Generate Sup Fig 4 for Paper
+# MSR is mean square ratio
+# log transform the MSR for each gene first
+anova_mal <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_male_yak_mel_sim.csv', stringsAsFactors = FALSE)
+anova_mal$MSR <- log(anova_mal$MSR)
+anova_fem <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_female_yak_mel_sim.csv', stringsAsFactors = FALSE)
+anova_fem$MSR <- log(anova_fem$MSR)
+
+plot_MSR <- simsig_plots('MSR', anova_mal, anova_fem, numsim = 1000000 )
+
+
+ggsave('Paper_figures_revision/Sup_Figure_4.pdf',plot_MSR,height = 5, width = 7.5)
+```
+
+This is to generate supplementary figure 5 which shows the marginal distributions of MS_sp and MS_st for each gene class
+
+```{r}
+###Generate Supplementary Fig 5 for paper
+source('Code/supplementary_anova_figs.R')
+library(cowplot)
+
+
+anova_mal <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_male_yak_mel_sim.csv',header = T, stringsAsFactors = F)
+# log transform the statistics of interest 
+anova_mal$MS_sp <- log(anova_mal$MS_sp)
+anova_mal$MS_st <- log(anova_mal$MS_st)
+  anova_fem <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_female_yak_mel_sim.csv',header = T, stringsAsFactors = F)
+# log transform the statistics of interest 
+anova_fem$MS_sp <- log(anova_fem$MS_sp)
+anova_fem$MS_st <- log(anova_fem$MS_st)
+plot_msb <- simsig_plots('MS_sp', anova_mal, anova_fem, numsim = 1000000)
+plot_msw <- simsig_plots('MS_st', anova_mal, anova_fem, numsim = 1000000)
+
+plot <- plot_grid(plot_msb,plot_msw,labels = c('A','B'),nrow = 2,scale = c(1,1))
+
+ggsave('Paper_figures_revision/Sup_Figure_5.pdf',plot,height = 10, width = 7.5)
+
+```
+
+
+This is to generate supplementary figure 6. This plot tests for an enrichment of genes under stabilizing selection.
+
+```{r}
+source('Code/supplementary_anova_figs.R')
+
+anova_mal <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_male_yak_mel_sim.csv',header = T, stringsAsFactors = F)
+anova_mal$MS_sp <- log(anova_mal$MS_sp)
+anova_mal$MS_st <- log(anova_mal$MS_st)
+  anova_fem <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_female_yak_mel_sim.csv',header = T, stringsAsFactors = F)
+
+plot <- stabilizing_plots(anova_mal, anova_fem)
+
+ggsave('Paper_figures_revision/Sup_Figure_6.pdf',plot,height = 4, width = 7.5)
+
+```
+Generate supplementary figure 7
+```{r}
+source('Code/supplementary_anova_figs.R')
+anova_mal <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_male_yak_mel_sim.csv', stringsAsFactors = F)
+anova_mal$MSR <- log(anova_mal$MSR)
+anova_fem <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_female_yak_mel_sim.csv', stringsAsFactors = F)
+anova_fem$MSR <- log(anova_fem$MSR)
+old_m <- read.csv('Evolution_of_Sex_Bias/Conservation/genes_3sp_male.txt',
+                  stringsAsFactors = FALSE)
+old_f <- read.csv('Evolution_of_Sex_Bias/Conservation/genes_3sp_female.txt',
+                  stringsAsFactors = FALSE)
+new_m <- read.csv('Evolution_of_Sex_Bias/Conservation/genes_1sp_male.txt',
+                  stringsAsFactors = FALSE)
+new_f <- read.csv('Evolution_of_Sex_Bias/Conservation/genes_1sp_female.txt',
+                  stringsAsFactors = FALSE)
+
+plot <- simsig_newold_plots('MSR', anova_mal, anova_fem,
+                            new_m$gene_id,new_f$gene_id, old_m$gene_id, old_f$gene_id, 
+                            numsim = 1000000)
+ggsave('Paper_figures_revision/Sup_Figure_7.pdf',plot,height = 4, width = 8)
+```
+
+
+Generate supplementary figure 8
+
+```{r}
+source('Code/hkal_analysis.R')
+library(cowplot)
+library(ggsignif)
+library(RColorBrewer)
+
+##load_hk data
+hk_file <- 'Dmel_PopData/HKAL_RAL1_dm6.bedGraph'
+hk <- read_in_hkdata(hk_file)
+##load expressed genes
+exp <- read.csv('Dmel/total_DESeq_output.txt', header = T, stringsAsFactors = F)
+
+#sex-biased genes
+#sbg_mel <- read.csv('Dmel/sex_biased_genes_dmel_includingStrain.txt',header = T, stringsAsFactors = F)
+m_x <- exp$gene_id[(exp$sex == 'm') & (exp$region == 'X')]
+f_x <- exp$gene_id[(exp$sex == 'f') & (exp$region == 'X')]
+u_x <- exp$gene_id[(exp$sex == 'u') & (exp$region == 'X')]
+
+m_a <- exp$gene_id[(exp$sex == 'm') & (exp$region == 'A')]
+f_a <- exp$gene_id[(exp$sex == 'f') & (exp$region == 'A')]
+u_a <- exp$gene_id[(exp$sex == 'u') & (exp$region == 'A')]
+
+x <- exp$gene_id[exp$region == 'X']
+a <- exp$gene_id[exp$region == 'A']
+gtf <- makeTxDbFromGFF('../refgtfs/dmel-all-r6.24.gtf')
+gen <- genes(gtf)
+
+
+# plot A
+data_x <- combine_hkal_glists(list(m_x,f_x,u_x),
+                              list("Male", "Female", "Unbiased"),
+                              hk,
+                              gen)
+data_x$loc <- "X Chromsome"
+
+p_x <- p_to_star(c( wilcox.test(data_x$hkal[data_x$type == 'Male'],
+                                data_x$hkal[data_x$type == 'Female'])$p.value,
+                    wilcox.test(data_x$hkal[data_x$type == 'Male']
+                                ,data_x$hkal[data_x$type == 'Unbiased'])$p.value,
+                    wilcox.test(data_x$hkal[data_x$type == 'Female']
+                                ,data_x$hkal[data_x$type == 'Unbiased'])$p.value))
+
+data_a <- combine_hkal_glists(list(m_a,f_a,u_a),
+                              list("Male", "Female", "Unbiased"),
+                              hk,
+                              gen)
+data_a$loc <- "Autosomes"
+
+p_a <- p_to_star(c( wilcox.test(data_a$hkal[data_a$type == 'Male'],
+                                data_a$hkal[data_a$type == 'Female'])$p.value,
+                    wilcox.test(data_a$hkal[data_a$type == 'Male']
+                                ,data_a$hkal[data_a$type == 'Unbiased'])$p.value,
+                    wilcox.test(data_a$hkal[data_a$type == 'Female']
+                                ,data_a$hkal[data_a$type == 'Unbiased'])$p.value))
+
+
+plot_mfux <- ggplot(data_x, aes(y=hkal, x=type,  fill=type)) + theme_classic()  + geom_boxplot()  +geom_signif(comparisons = list(c('Male',  'Female'), c('Male',  'Unbiased'), c('Female',  'Unbiased')), annotations = c(p_x[1], p_x[2], p_x[3]), y_position = c(1, 2, 1))+
+  xlab('') + ylab('HKAl') + theme(legend.position = "none") + scale_fill_brewer(palette="Dark2") + ggtitle('X Chromosome')+ ylim(-6, 3)
+
+plot_mfua <- ggplot(data_a, aes(y=(hkal), x=type,  fill=type))  + theme_classic() + geom_boxplot()  +geom_signif(comparisons = list(c('Male',  'Female'), c('Male',  'Unbiased'), c('Female',  'Unbiased')), annotations = c(p_a[1], p_a[2], p_a[3]), y_position = c(0.5, 2, 0.5))+
+  xlab('') + ylab('HKAl') + theme(legend.position = "none") + scale_fill_brewer(palette="Dark2")+ ggtitle('Autosomes')+ ylim(-12.5, 3)
+
+plot_a <- plot_grid(plot_mfux,plot_mfua, nrow=1)
+#####_Compare Highly Diverged and underdiverged genes
+anova_mal <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_male_yak_mel_sim.csv', stringsAsFactors = FALSE)
+anova_mal <- anova_mal[order(anova_mal$MSR, decreasing = TRUE),]
+
+anova_fem <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_female_yak_mel_sim.csv', stringsAsFactors = FALSE)
+anova_fem <- anova_fem[order(anova_fem$MSR, decreasing = TRUE),]
+
+##consider only genes which are highly diverged in either males and females to be diverged. Genes which are undiverged
+##in both males and females are considered undiverged
+
+num_div_m <- round(dim(anova_mal)[1]*.05)
+num_div_f <- round(dim(anova_fem)[1]*.05)
+##consider only genes which are highly diverged in either males and females to be diverged. Genes which are undiverged
+##in both males and females are considered undiverged
+
+div_m <- anova_mal[c(1:num_div_m), "gene_id"]
+div_f <- anova_fem[c(1:num_div_f), "gene_id"]
+
+div <- unique(c(div_m, div_f))
+#conserved genes are not diverged in either sex
+cons_m <-anova_mal$gene_id[!(anova_mal$gene_id %in% div)]
+cons_f <- anova_fem$gene_id[!(anova_fem$gene_id %in% div)]
+cons <- intersect(cons_m, cons_f)
+# ##This is for plot B
+data_x <- combine_hkal_glists(list(div[div %in% x], 
+                                   cons[cons %in% x]), 
+                              list("Diverged",  "Conserved"), 
+                              hk, 
+                              gen)
+data_x$loc <- "X Chromsome"
+
+p_x <- p_to_star(c( wilcox.test(data_x$hkal[data_x$type == 'Diverged'], 
+                                data_x$hkal[data_x$type == 'Conserved'])$p.value))
+
+data_a <- combine_hkal_glists(list(div[div %in% a], 
+                                   cons[cons %in% a]), 
+                              list("Diverged",  "Conserved"), 
+                              hk, 
+                              gen)
+data_a$loc <- "Autosomes"
+
+p_a <- p_to_star(c( wilcox.test(data_a$hkal[data_a$type == 'Diverged'], 
+                                data_a$hkal[data_a$type == 'Conserved'])$p.value))
+
+
+plot_consdivx <- ggplot(data_x, aes(y=(hkal), x=type,  fill=type)) + theme_classic()+ geom_boxplot()  +geom_signif(comparisons = list(c('Diverged', 'Conserved')), annotations = c(p_x[1]), y_position = c(1))+
+  xlab('') + ylab('HKAl') + theme(legend.position = "none") + ggtitle('X Chromosome') + scale_fill_brewer(palette="Dark2") + ylim(-6, 3)
+
+plot_consdiva <- ggplot(data_a, aes(y=(hkal), x=type,  fill=type))+ theme_classic() + geom_boxplot()  +geom_signif(comparisons = list(c('Diverged', 'Conserved')), annotations = c(p_a[1]), y_position = c(0.5))+
+  xlab('') + ylab('HKAl') + theme(legend.position = "none") + ggtitle('Autosomes') + scale_fill_brewer(palette="Dark2") + ylim(-12.5, 3)
+
+plot_b <- plot_grid(plot_consdivx, plot_consdiva,  nrow = 1,  align = T)
+##____________________________-This is for plot C
+data_x <- combine_hkal_glists(list(div[(div %in% m_x)], 
+                                   div[(div %in% f_x)], 
+                                   div[(div %in% u_x)]), 
+                              list("Male",  "Female",  "Unbiased"), 
+                              hk, 
+                              gen)
+data_x$loc <- "X Chromsome"
+
+p_x <- p_to_star(c( wilcox.test(data_x$hkal[data_x$type == 'Male'], 
+                                data_x$hkal[data_x$type == 'Female'])$p.value, 
+                    wilcox.test(data_x$hkal[data_x$type == 'Male']
+                                , data_x$hkal[data_x$type == 'Unbiased'])$p.value, 
+                    wilcox.test(data_x$hkal[data_x$type == 'Female']
+                                , data_x$hkal[data_x$type == 'Unbiased'])$p.value))
+
+data_a <- combine_hkal_glists(list(div[(div %in% m_a)], 
+                                   div[(div %in% f_a)], 
+                                   div[(div %in% u_a)]), 
+                              list("Male",  "Female",  "Unbiased"), 
+                              hk, 
+                              gen)
+data_a$loc <- "Autosomes"
+
+p_a <- p_to_star(c( wilcox.test(data_a$hkal[data_a$type == 'Male'], 
+                                data_a$hkal[data_a$type == 'Female'])$p.value, 
+                    wilcox.test(data_a$hkal[data_a$type == 'Male']
+                                , data_a$hkal[data_a$type == 'Unbiased'])$p.value, 
+                    wilcox.test(data_a$hkal[data_a$type == 'Female']
+                                , data_a$hkal[data_a$type == 'Unbiased'])$p.value))
+
+
+
+
+plot_consdivx <- ggplot(data_x, aes(y=hkal, x=type,  fill=type)) + theme_classic()+ geom_boxplot()  +geom_signif(comparisons = list(c('Male',  'Female'),  c('Male',  'Unbiased'), c('Female',  'Unbiased')), annotations = c(p_x[1], p_x[2], p_x[3]), y_position = c(1, 2, 1))+
+  xlab('') + ylab('HKAl') + theme(legend.position = "none") + ggtitle('X Chromosome') + scale_fill_brewer(palette="Dark2") + ylim(-6, 3)
+
+plot_consdiva <- ggplot(data_a, aes(y=hkal, x=type,  fill=type))+ theme_classic() + geom_boxplot()  +geom_signif(comparisons = list(c('Male',  'Female'),  c('Male',  'Unbiased'), c('Female',  'Unbiased')), annotations = c(p_a[1], p_a[2], p_a[3]), y_position = c(0.5, 2, 0.5))+
+  xlab('') + ylab('HKAl') + theme(legend.position = "none") + ggtitle('Autosomes') + scale_fill_brewer(palette="Dark2") + ylim(-12.5, 3)
+
+plot_c <- plot_grid(plot_consdivx, plot_consdiva,  nrow = 1,  align = T)
+
+plot_final <- plot_grid(plot_a, plot_b, plot_c, nrow=3, labels = c("A", "B", "C"))
+
+ggsave('Paper_figures_revision/Sup_Figure_8_test.pdf', plot_final, height=8, width = 6)
+
+
+
+```
+
+
+
+Supplementary Figure 9. Gene expression divergence patterns while regressing out tissue specificity.
+
+```{r}
+source('Code/oliver_data_analysis.R')
+source('Code/supplementary_anova_figs.R')
+tau_yak <- load_tau('dyak')
+tau_f_yak <- tau_yak$female_tau
+tau_m_yak <- tau_yak$male_tau
+
+tau_mel <- load_tau('dmel')
+tau_f_mel <- tau_mel$female_tau
+tau_m_mel <- tau_mel$male_tau
+
+#load anova data
+anova_mal <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_male_yak_mel_sim.csv',  stringsAsFactors = FALSE)
+anova_fem <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_female_yak_mel_sim.csv',  stringsAsFactors = FALSE)
+#merge tau data with anova data
+data_m_mel <- merge(tau_m_mel, anova_mal, by = "gene_id")
+data_f_mel <- merge(tau_f_mel, anova_fem, by = "gene_id")
+
+
+data_m_yak <- merge(tau_m_yak, anova_mal, by = "gene_id")
+data_f_yak <- merge(tau_f_yak, anova_fem, by = "gene_id")
+
+data_m_mel <- regress_out_tau_msr(data_m_mel)
+data_f_mel <- regress_out_tau_msr(data_f_mel)
+
+data_m_yak <- regress_out_tau_msr(data_m_yak)
+data_f_yak <- regress_out_tau_msr(data_f_yak)
+
+
+plot_a <- simsig_plots('MSR', data_m_mel, data_f_mel,  1000000)
+
+plot_b <- simsig_plots('MSR', data_m_yak, data_f_yak,  1000000)
+
+
+plot <- plot_grid(plot_a, plot_b, labels = c('A', 'B'), nrow = 2, align = T)
+
+ggsave('Paper_figures_revision/Sup_Figure_9.pdf', plot, height = 10,  width = 7.5)
+
+```
+
+
+
+Correlations between Tau and intra and inter-specific variability. Supplementary Figure 10
+```{r}
+source('Code/oliver_data_analysis.R')
+
+#load Tau data calculated in previous chunk
+tau_yak <- load_tau('dyak')
+tau_f_yak <- tau_yak$female_tau
+tau_m_yak <- tau_yak$male_tau
+
+tau_mel <- load_tau('dmel')
+tau_f_mel <- tau_mel$female_tau
+tau_m_mel <- tau_mel$male_tau
+
+#load anova data
+anova_mal <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_male_yak_mel_sim.csv',stringsAsFactors = F)
+anova_fem <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_female_yak_mel_sim.csv', stringsAsFactors = F)
+
+#merge tau data with anova data
+data_m_mel <- merge(tau_m_mel,anova_mal,by = "gene_id")
+data_f_mel <- merge(tau_f_mel,anova_fem,by = "gene_id")
+
+
+data_m_yak <- merge(tau_m_yak,anova_mal,by = "gene_id")
+data_f_yak <- merge(tau_f_yak,anova_fem,by = "gene_id")
+
+#correlation between ms_bet and ms_wit and tau
+
+##
+
+tau_correlation_plots <- function(stat, data_m_mel, data_f_mel, data_m_yak, data_f_yak){
+plot_a <- msr_v_tau_plot(data_f_mel, stat, 'Female', 'Dmel')
+plot_b <- msr_v_tau_plot(data_m_mel, stat, 'Male', 'Dmel')
+plot_c <- msr_v_tau_plot(data_f_yak, stat, 'Female', 'Dyak')
+plot_d <- msr_v_tau_plot(data_m_yak, stat, 'Male', 'Dyak')
+
+plot <- plot_grid(plot_a, plot_b, plot_c, plot_d, align = T,  nrow = 2, 
+                  labels = c('I', 'II', 'III', 'IV'),  scale = 0.9)
+return(plot)
+}
+
+plot_msbet <- tau_correlation_plots('MS_sp', data_m_mel, data_f_mel, data_m_yak, data_f_yak)
+plot_mswit <- tau_correlation_plots('MS_st', data_m_mel, data_f_mel, data_m_yak, data_f_yak)
+plot <- plot_grid(plot_msbet, plot_mswit, nrow = 2, labels = c('A', 'B'), align = T,  scale = 0.9)
+ggsave('Paper_figures_revision/Sup_Figure_10.pdf', plot, height = 11,  width = 8)
+
+```
+
+Get tissue specificities for sex-biased genes Supplementary Fig 11.
+
+```{r}
+source('Code/oliver_data_analysis.R')
+
+tau_yak <- load_tau('dyak')
+tau_f_yak <- tau_yak$female_tau
+tau_m_yak <- tau_yak$male_tau
+
+tau_mel <- load_tau('dmel')
+tau_f_mel <- tau_mel$female_tau
+tau_m_mel <- tau_mel$male_tau
+
+sbg <- load_sbg_data()
+
+append_type <- function(data){
+  data[, 'type'] <- NA
+  data$type[data$gene_id %in% sbg$x_m] <- 'Male\nX'
+  data$type[data$gene_id %in% sbg$x_f] <- 'Female\nX'
+  data$type[data$gene_id %in% sbg$x_u] <- 'Unb.\nX'
+  
+  data$type[data$gene_id %in% sbg$auto_m] <- 'Male\nA'
+  data$type[data$gene_id %in% sbg$auto_f] <- 'Female\nA'
+  data$type[data$gene_id %in% sbg$auto_u] <- 'Unb.\nA'
+  data <- na.omit(data)
+  data$type <- factor(data$type,  levels = c('Male\nX', 'Female\nX', 'Unb.\nX', 'Male\nA', 'Female\nA', 'Unb.\nA'))
+  return(data)
+}
+
+tau_m_mel <- append_type(tau_m_mel)
+tau_f_mel <- append_type(tau_f_mel)
+
+tau_m_yak <- append_type(tau_m_yak)
+tau_f_yak <- append_type(tau_f_yak)
+
+ylab_male_mel <- expression('Tissue specificity in' ~ italic('D. mel') ~ ' males')
+ylab_female_mel <- expression('Tissue specificity in' ~ italic('D. mel') ~ ' females')
+
+ylab_male_yak <- expression('Tissue specificity in' ~ italic('D. yak') ~ ' males')
+ylab_female_yak <- expression('Tissue specificity in' ~ italic('D. yak') ~ ' females')
+
+plot_m_mel <- ggplot(tau_m_mel, aes(y = tau, x = type, fill = type)) + geom_boxplot() + ylab(ylab_male_mel) + xlab('') + theme_classic() + scale_fill_brewer(palette="Dark2") + theme(legend.position = "none")
+
+plot_f_mel <- ggplot(tau_f_mel, aes(y = tau, x = type, fill = type)) + geom_boxplot() + ylab(ylab_female_mel) + xlab('') + theme_classic() + scale_fill_brewer(palette="Dark2") + theme(legend.position = "none")
+
+plot_m_yak <- ggplot(tau_m_yak, aes(y = tau, x = type, fill = type)) + geom_boxplot() + ylab(ylab_male_yak ) + xlab('') + theme_classic() + scale_fill_brewer(palette="Dark2") + theme(legend.position = "none")
+
+plot_f_yak <- ggplot(tau_f_yak, aes(y = tau, x = type, fill = type)) + geom_boxplot() + ylab(ylab_female_yak) + xlab('') + theme_classic() + scale_fill_brewer(palette="Dark2") + theme(legend.position = "none")
+
+plot <- plot_grid(plot_m_mel,  plot_f_mel, plot_m_yak,  plot_f_yak, nrow = 2,  labels = c('A', 'B', 'C', 'D'))
+ggsave('Paper_figures_revision/Sup_Figure_11.pdf', plot, height = 11,  width = 8)
+
+
+```
+
+Supplementary figure 12. Regress out the effects of tissue specificity on gene expression variability (both inter and intra specific). Test for stabilizing selection.
+
+
+```{r}
+source('Code/supplementary_anova_figs.R')
+source('Code/oliver_data_analysis.R')
+
+
+tau_yak <- load_tau('dyak')
+tau_f_yak <- tau_yak$female_tau
+tau_m_yak <- tau_yak$male_tau
+
+tau_mel <- load_tau('dmel')
+tau_f_mel <- tau_mel$female_tau
+tau_m_mel <- tau_mel$male_tau
+
+#load anova data
+anova_mal <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_male_yak_mel_sim.csv', 
+                      stringsAsFactors = FALSE)
+anova_fem <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_female_yak_mel_sim.csv', 
+                      stringsAsFactors = FALSE)
+#merge tau data with anova data
+data_m_mel <- merge(tau_m_mel, anova_mal, by = "gene_id")
+data_f_mel <- merge(tau_f_mel, anova_fem, by = "gene_id")
+
+
+
+data_m_mel <- regress_out_tau_msbet(data_m_mel)
+data_f_mel <- regress_out_tau_msbet(data_f_mel)
+
+data_m_mel <- regress_out_tau_mswit(data_m_mel)
+data_f_mel <- regress_out_tau_mswit(data_f_mel)
+#___do the same for yakuba
+data_m_yak <- merge(tau_m_yak, anova_mal, by = "gene_id")
+data_f_yak <- merge(tau_f_yak, anova_fem, by = "gene_id")
+
+data_m_yak <- regress_out_tau_msbet(data_m_yak)
+data_f_yak <- regress_out_tau_msbet(data_f_yak)
+
+data_m_yak <- regress_out_tau_mswit(data_m_yak)
+data_f_yak <- regress_out_tau_mswit(data_f_yak)
+# ___ Plot
+plot_a <- stabilizing_plots(data_m_mel, data_f_mel)
+plot_b <- stabilizing_plots(data_m_yak, data_f_yak)
+plot <- plot_grid(plot_a, plot_b, labels = c('A', 'B'), nrow = 2, align = T)
+ggsave('Paper_figures_revision/Sup_Figure_12_test.pdf', plot, height = 10,  width = 7.5)
+```
+
+
+supplementary figure 13. Direction of gene expression evolution
+```{r}
+source('Code/genetic_constraint.R')
+#####___Make Plots for Figure 7 A and B. This only considers 1:1:1 orthologs between the species.
+px <- generate_plots('X')
+pa <- generate_plots('A')
+plot <- plot_grid(px,pa,nrow=1,labels = c('A','B'))
+
+ggsave('Paper_figures_revision/Sup_Figure_13.pdf',plot,height = 4, width = 8)
+
+
+```
+Dn/Ds analysis. Supplementary figure 14.
+```{r}
+
+rm(list=ls(all=TRUE)) 
+
+sbg_df <- read.csv('Dmel/sex_biased_genes_dmel.txt',stringsAsFactors = F)
+dnds <- read.csv('Evolution_of_Sex_Bias/Dn:Ds_testing/kaks-sim-mel/Sheet2-Table 1.csv',header = TRUE, stringsAsFactors = FALSE)
+conversion <-read.delim('Evolution_of_Sex_Bias/mk_testing/FlyBase_IDs.txt',header = TRUE, stringsAsFactors = FALSE)
+
+for (gene in na.omit(dnds$FBID_KEY)){
+  if (length(conversion[conversion$X..submitted_id == gene,'current_id'])>1){print('2')}
+  dnds[dnds$mel_gene == gene,'FBID_KEY'] <-conversion[conversion$X..submitted_id == gene,'current_id'][1]
+}
+dup <- dnds[duplicated(dnds$FBID_KEY),"FBID_KEY"]
+dnds <- dnds[!(dnds$FBID_KEY %in% dup),]
+dnds<- data.frame(dnds = dnds$mel_dNdS30,dn = dnds$mel_dN30,ds=dnds$mel_dS30,gene_id = dnds$FBID_KEY)
+#exclude genes with dnds>10
+dnds <- dnds[dnds$dnds < 10,]
+dnds <- na.omit(dnds)
+##____________________________________________DnDs of all sex biased genes.
+#___X chromosome. First compare male x and female x to all genes.
+library(ggplot2)
+library(gridExtra)
+library("cowplot")
+library(ggpubr)
+
+exp <- read.csv('Dmel/total_DESeq_output.txt', header = TRUE, stringsAsFactors = F)
+x_u <- exp$gene_id[(exp$sex == 'u') & (exp$region == 'X') ]
+a_u <- exp$gene_id[(exp$sex == 'u') & (exp$region == 'A') ]
+
+genes_m_x <- exp$gene_id[(exp$sex == 'm') & (exp$region == 'X') ]
+genes_f_x <- exp$gene_id[(exp$sex == 'f') & (exp$region == 'X') ]
+genes_m_a <- exp$gene_id[(exp$sex == 'm') & (exp$region == 'A') ]
+genes_f_a <- exp$gene_id[(exp$sex == 'f') & (exp$region == 'A') ]
+
+dnds_m_x <- data.frame(dnds[dnds$gene_id %in% genes_m_x,],sex = "Male")
+dnds_f_x <- data.frame(dnds[dnds$gene_id %in% genes_f_x,],sex = "Female")
+dnds_x <- data.frame(dnds[dnds$gene_id %in% x_u,],sex = "Unbiased")
+dnds_m_a <- data.frame(dnds[dnds$gene_id %in% genes_m_a,],sex = "Male")
+dnds_f_a <- data.frame(dnds[dnds$gene_id %in% genes_f_a,],sex = "Female")
+dnds_a <- data.frame(dnds[dnds$gene_id %in% a_u,],sex = "Unbiased")
+
+p1 <- wilcox.test(dnds_m_x$dnds,dnds_f_x$dnds)
+p2 <- wilcox.test(dnds_f_x$dnds,dnds_x$dnds)
+p3 <- wilcox.test(dnds_m_x$dnds,dnds_x$dnds)
+
+p4 <- wilcox.test(dnds_m_a$dnds,dnds_f_a$dnds)
+p5 <- wilcox.test(dnds_f_a$dnds,dnds_a$dnds)
+p6 <- wilcox.test(dnds_m_a$dnds,dnds_a$dnds)
+
+
+#correct all p-values (both autosomal and x-linked) before plotting seperately. 
+p <- p.adjust(c(p1$p.value,p2$p.value,p3$p.value,p4$p.value,p5$p.value,p6$p.value),method = "BH")
+
+
+p[p <= 0.001] <- "***"
+p[0.001<p & p <= 0.01] <- "**"
+p[0.01< p & p <= 0.05] <- "*"
+p[p>0.05] <- "NS"
+
+dnds_x_tot <- data.frame( dnds = c(median(dnds_f_x$dnds),
+                                   median(dnds_m_x$dnds),
+                                   median(dnds_x$dnds)),
+                          sex = c('Female', 'Male', 'Unbiased')
+)
+dnds_a_tot <- data.frame( dnds = c(median(dnds_f_a$dnds),
+                                   median(dnds_m_a$dnds),
+                                   median(dnds_a$dnds)),
+                          sex = c('Female', 'Male', 'Unbiased')
+)
+
+plot_x_ns <- ggplot(rbind(dnds_f_x, dnds_m_x, dnds_x),aes(x=sex,y=dnds,fill=sex)) + theme_classic()+geom_boxplot(outlier.shape = NA) + 
+  geom_signif(comparisons = list(c('Male', 'Female'),c('Female', 'Unbiased'),c('Male', 'Unbiased')),
+              annotations = p[c(1:3)],y_position = c(.5,.55,.5), tip_length = 0.002)+xlab('') +  ylab(expression('Median d'[italic('N')]*'/'*'d'[italic('S')])) + scale_fill_brewer(palette="Dark2")  + ylim(0,.6)+theme(legend.position = "none") + ggtitle('X Chromosome')
+                                                                           
+
+plot_a_ns <- ggplot(rbind(dnds_f_a, dnds_m_a, dnds_a),aes(x=sex,y=dnds,fill=sex)) + theme_classic() + geom_boxplot(outlier.shape = NA) + geom_signif(comparisons = list(c('Male', 'Female'),c('Female', 'Unbiased'),c('Male', 'Unbiased')),annotations = p[c(4:6)],y_position = c(.5,.55,.5), tip_length = 0.002)+ xlab('')+  ylab(expression('Median d'[italic('N')]*'/'*'d'[italic('S')])) + scale_fill_brewer(palette="Dark2") + ylim(0,.6)+theme(legend.position = "none") + ggtitle('Autosomes')
+
+
+
+gt <- plot_grid(plot_x_ns,plot_a_ns,ncol=2,nrow=1,align=T)
+gt
+#ggsave('Evolution_of_Sex_Bias/DnDs/Male_Female_DnDs_WithStrain.pdf',gt,height = 8, width=6)
+ggsave('Paper_figures_revision/Sup_Figure_14_test.pdf',gt,height = 3, width=6)
+```
+
+
+Generate lists for GO analysis. We used the Panther database online for GO enrichment.
+
+```{r}
+library(GenomicFeatures)
+# in Dsim and Dyak only consider orthologs
+add_dmel_ortho <- function(species,genes,orthologs){
+  dmel_ortho <- function(gene,species,orthologs){
+    return(orthologs[orthologs[,species] == gene,'Dmel'])
+  }
+
+  mel_gene <- as.vector(sapply(genes,dmel_ortho,species = species,orthologs = orthologs))
+
+  return(mel_gene)
+}
+
+# get list of all expressed genes in a given species. "expressed" genes are genes with a finite p-value according to DESeq
+get_allexp <- function(species){
+  all_exp <- read.csv(paste0(species, '/genes_with_finite_p_val.txt'),
+                      stringsAsFactors = FALSE )
+  # if the species isnt Dmel only consider 1:1 orthologs
+  orthologs <-read.csv('Evolution_of_Sex_Bias/one_one_orthologs_mel_yak_sim.csv',header=T,stringsAsFactors = F)
+  if(species != 'Dmel'){
+    all_exp <- all_exp[all_exp$Gene.ID %in% orthologs[,species],]
+    all_exp$Gene.ID <- add_dmel_ortho(species, all_exp$Gene.ID, orthologs)
+  }
+  return(all_exp$Gene.ID)
+}
+
+
+# get list of sex-biased genes in each species
+get_sbgenes <- function(species, x, a){
+  sbg <- read.csv(paste0(species, '/sex_biased_genes_',species,'.txt' ),
+                  stringsAsFactors = F)
+  
+  # if the species isnt Dmel only consider 1:1 orthologs
+  orthologs <-read.csv('Evolution_of_Sex_Bias/one_one_orthologs_mel_yak_sim.csv',header=T,stringsAsFactors = F)
+  if(species != 'Dmel'){
+    sbg <- sbg[sbg$gene_id %in% orthologs[,species],]
+    sbg$gene_id <- add_dmel_ortho(species, sbg$gene_id, orthologs)
+  }
+  # get list of X chromosome and autosomal genes
+  x <- sbg$gene_id[grepl('X',sbg$seqnames)] 
+  a <- sbg[grepl('2L',sbg$seqnames) |
+           grepl('2R',sbg$seqnames) |
+            grepl('3L',sbg$seqnames) |
+             grepl('3R',sbg$seqnames) | 
+             sbg$seqnames == '4','gene_id']
+
+  # get lists of male- and female-biased genes
+  m <- sbg$gene_id[sbg$sex == 'm']
+  f <- sbg$gene_id[sbg$sex == 'f']
+  
+  # get lists of sex-biased genes by chromosomal location
+  m_x <- m[m %in% x]
+  f_x <- f[f %in% x]
+  
+  m_a <- m[m %in% a]
+  f_a <- f[f %in% a]
+  
+  out <- list(m_x, f_x, m_a, f_a)
+  names(out) <- c("m_x", "f_x", "m_a", "f_a")
+  return(out)
+}
+
+# write lists to GO folder for each species
+write_lists <- function(species){
+  sbgenes <- get_sbgenes(species)
+  write.table(sbgenes$m_x,paste0('GO/', species, '/male_x.txt'),
+              col.names = FALSE, row.names = FALSE, quote = FALSE)
+  write.table(sbgenes$f_x,paste0('GO/', species, '/female_x.txt'),
+              col.names = FALSE, row.names = FALSE, quote = FALSE)
+  write.table(sbgenes$m_a,paste0('GO/', species, '/male_a.txt'),
+              col.names = FALSE, row.names = FALSE, quote = FALSE)
+  write.table(sbgenes$f_a,paste0('GO/', species, '/female_a.txt'),
+              col.names = FALSE, row.names = FALSE, quote = FALSE)
+  write.table(get_allexp(species),paste0('GO/', species, '/all_exp.txt'),
+              col.names = FALSE, row.names = FALSE, quote = FALSE)
+}
+
+write_lists('Dmel')
+write_lists('Dsim')
+write_lists('Dyak')
+
+
+
+```
+
+
+
+faster-X Sup table 5
+
+```{r}
+source('Code/anova_analysis.R')
+
+anova_mal <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_male_yak_mel_sim.csv',header = T, stringsAsFactors = F)
+
+anova_fem <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_female_yak_mel_sim.csv',header = T, stringsAsFactors = F)
+  
+
+sbg <- load_sbg_data()
+# get X Chromosome genes
+x_m <- sbg$x_m
+x_f <- sbg$x_f
+x_u <- sbg$x_u
+
+ref_gtf <- makeTxDbFromGFF("../refgtfs/dmel-all-r6.24.gtf")
+gen <- genes(ref_gtf)
+gen_df <- as.data.frame(gen)
+a <- gen_df[grepl('2L', gen_df$seqnames) |
+            grepl('2R', gen_df$seqnames) | 
+            grepl('3L', gen_df$seqnames) |
+            grepl('3R', gen_df$seqnames) | 
+            (gen_df$seqnames == '4'), 'gene_id']
+
+p_f_fem <- wilcox.test(anova_fem$MSR[anova_fem$gene_id %in% x_f],
+                       anova_fem$MSR[anova_fem$gene_id %in% a])$p.value
+p_m_fem <- wilcox.test(anova_fem$MSR[anova_fem$gene_id %in% x_m],
+                       anova_fem$MSR[anova_fem$gene_id %in% a])$p.value
+p_u_fem <- wilcox.test(anova_fem$MSR[anova_fem$gene_id %in% x_u],
+                       anova_fem$MSR[anova_fem$gene_id %in% a])$p.value
+
+p_f_mal <- wilcox.test(anova_mal$MSR[anova_mal$gene_id %in% x_f],
+                       anova_mal$MSR[anova_mal$gene_id %in% a])$p.value
+p_m_mal <- wilcox.test(anova_mal$MSR[anova_mal$gene_id %in% x_m],
+                       anova_mal$MSR[anova_mal$gene_id %in% a])$p.value
+p_u_mal <- wilcox.test(anova_mal$MSR[anova_mal$gene_id %in% x_u],
+                       anova_mal$MSR[anova_mal$gene_id %in% a])$p.value
+p <- p.adjust(c(p_f_fem, p_m_fem, p_u_fem, p_f_mal, p_m_mal, p_u_mal), method = "BH")
+data <- data.frame(p_fem = p[c(1:3)], p_mal = p[c(4:6)])
+
+
+```
+
+MK testing Sup table 6
+
+```{r}
+
+rm(list=ls(all=TRUE)) 
+library(rtracklayer)
+library(GenomicFeatures)
+library(ggplot2)
+
+mkd <- read.csv('Evolution_of_Sex_Bias/mk_testing/mk.csv',header = TRUE, stringsAsFactors = FALSE)
+conversion <-read.delim('Evolution_of_Sex_Bias/mk_testing/FlyBase_IDs.txt',header = TRUE, stringsAsFactors = FALSE)
+
+##convert all fbgns from version 5 to verison 6
+n<-0
+for (gene in na.omit(mkd$mel_gene)){
+  n <- n+1
+  print(n)
+  if (length(conversion[conversion$X..submitted_id == gene,'current_id'])>1){print('2')}
+  mkd[mkd$mel_gene == gene,'mel_gene'] <-conversion[conversion$X..submitted_id == gene,'current_id'][1]
+}
+mkd[is.na(mkd$Dos_2),'Dos_2'] <- -Inf
+mkd <- as.numeric(mkd)
+dup <- mkd[duplicated(mkd$mel_gene),"mel_gene"]
+mkd <-mkd[!(mkd$mel_gene %in% dup),]
+exp <- read.csv('Dmel/total_DESeq_output.txt', header = T, stringsAsFactors = F)
+mkd <- mkd[mkd$mel_gene %in% exp$gene_id,]
+mkd[is.na(mkd$Dos_2),'Dos_2'] <- -Inf
+##____ MK test all sex biased genes.
+get_sig <- function(genes,background=mkd$mel_gene,mkd){
+mkd <- mkd[mkd$mel_gene %in% background, ]
+total_sig <- sum(mkd$unFETpval_mel<0.05 & mkd$Dos_2>0)
+total <- dim(mkd)[1]
+mkd_genes<- mkd[mkd$mel_gene %in% genes,]
+  #data.frame(mkp = as.numeric(mkd[mkd$mel_gene %in% genes1,'unFETpval_mel']),alpha = (as.numeric(mkd[mkd$mel_gene %in% genes1,'Dos_2'])))
+
+
+sig_sb <- sum(mkd_genes$unFETpval_mel<0.05 & mkd_genes$Dos_2>0)
+
+percentile <- phyper(sig_sb,total_sig ,total-total_sig,dim(mkd_genes)[1])
+if(percentile>0.5){
+  p <- 2*(1 - percentile)}
+if(percentile <= 0.5){
+  p <- 2*percentile}
+return(data.frame(p = p,genes_tested =dim(mkd_genes)[1],genes_sig = sig_sb ))
+}
+
+
+x <- exp$gene_id[exp$region == 'X']
+a <- exp$gene_id[exp$region == 'A']
+genes_m_x <- exp$gene_id[exp$sex == "m" & (exp$region == 'X')]
+genes_f_x <- exp$gene_id[exp$sex == "f" & (exp$region == 'X')]
+genes_m_a <- exp$gene_id[exp$sex == "m"  & (exp$region == 'A')]
+genes_f_a <- exp$gene_id[exp$sex == "f" & (exp$region == 'A')]
+
+print(get_sig(genes_f_x,background=mkd$mel_gene,mkd=mkd))
+print(get_sig(genes_m_x,background=mkd$mel_gene,mkd=mkd))
+print(get_sig(genes_f_a,background=mkd$mel_gene,mkd=mkd))
+print(get_sig(genes_m_a,background=mkd$mel_gene,mkd=mkd))
+
+
+print(get_sig(genes_f_x,background=x,mkd=mkd))
+print(get_sig(genes_m_x,background=x,mkd=mkd))
+print(get_sig(genes_f_a,background=a,mkd=mkd))
+print(get_sig(genes_m_a,background=a,mkd=mkd))
+
+
+```
+

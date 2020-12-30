@@ -1,0 +1,650 @@
+---
+title: "Sexbias Main"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# set directory for analysis
+knitr::opts_knit$set(root.dir = "~/Desktop/LabWork/Sexbias_final/Analysis/")
+rm(list=ls(all=TRUE)) 
+```
+
+
+This document should generate all the main figures from the manuscript "Evolution of sex-biased genes expression in the Drosophila brain". This document will walk through each figure one at a time.
+
+
+First thing to do is find the sex-biased genes in each species.To do this we will import a function from the file get_sexbiased_DESeq.R. Look into that file for code details. 
+This assumes that in your project folder you have a folder named Dmel, Dsim, and Dyak. 
+Each folder will have the output of prepDE.py (a script which generates read counts using ballgown output). Running the chunk below should output the sex-biased genes for each species into a folder named after the species. 
+The stringtie output (which is used as an input for this function) for each species is located in a folder with format Known_Gene_Exp_species. The read counts are stored in a matrix called 'gene_count_matrix.csv'.
+
+```{r}
+source("Code/get_sexbiased_DESeq.R")
+# input (species,sig_level,count_matrix_name,expression_folder_prefix)
+
+run_DESeq('dmel',0.05, 'gene_count_matrix.csv', 'Known_Gene_Exp_')
+run_DESeq('dyak',0.05, 'gene_count_matrix.csv', 'Known_Gene_Exp_')
+run_DESeq('dsim',0.05, 'gene_count_matrix.csv', 'Known_Gene_Exp_')
+```
+
+
+Next we will generate the plot from figure 1B in the paper. This relies on the output of the chunk above.
+
+```{r}
+library(ggplot2)
+# get fraction of expressed genes that are male or female biased
+# exp_df contains all genes with finite p-values according to DESeq
+get_frac_biased <- function(sbg_df, exp_df, species){
+  num_exp <- length(unique(exp_df$gene_id))
+  num_maleb <- sum(sbg_df$sex == 'm')
+  num_femaleb <- sum(sbg_df$sex == 'f')
+  out_df <- data.frame(frac_mf = c(num_maleb/num_exp, num_femaleb/num_exp),
+                       sex = c('Male', 'Female'),
+                       species = c(species, species))
+  return(out_df)
+}
+# load sex-biased tables
+sbg_mel <- read.csv('Dmel/sex_biased_genes_dmel.txt', stringsAsFactors = F)
+sbg_sim <- read.csv('Dsim/sex_biased_genes_dsim.txt', stringsAsFactors = F)
+sbg_yak <- read.csv('Dyak/sex_biased_genes_dyak.txt', stringsAsFactors = F)
+
+exp_mel <- read.csv('Dmel/genes_with_finite_p_val.txt', stringsAsFactors = F)
+exp_sim <- read.csv('Dsim/genes_with_finite_p_val.txt', stringsAsFactors = F)
+exp_yak <- read.csv('Dyak/genes_with_finite_p_val.txt', stringsAsFactors = F)
+# total number of "expressed" genes. By expressed we mean genes with a calculable p-value #with DESEq
+
+dmel_frac <- get_frac_biased(sbg_mel, exp_mel, 'D. mel')
+dsim_frac <- get_frac_biased(sbg_sim, exp_sim, 'D. sim')
+dyak_frac <- get_frac_biased(sbg_yak, exp_yak, 'D. yak')
+
+total_frac <- rbind(dmel_frac, dsim_frac, dyak_frac)
+
+
+plot_frac <- ggplot(total_frac,aes(sex, frac_mf,fill=sex)) + geom_col() + xlab('') + ylab('Fraction of genes\nwith sex-biased expression') + theme_classic() + theme(legend.position = "none")+  facet_grid(. ~ species) + scale_fill_brewer(palette="Dark2")
+
+ggsave(file='Paper_figures_revision/Fig_1B_test.pdf', plot=plot_frac, width = 4, height=4)
+```
+
+The following chunk will generate figure 2 from the paper. Requiring the output of the first chunk where sexbiased genes were found. It utilizes functions written in the chr_distributions.R file. Look there for more details about how the simulations were run.
+
+
+```{r}
+source("Code/chr_distributions.R")
+
+# these functions simultaneously run the simulations and plot the output. 
+# look into above sourced file for more detail
+# variable format plot_sexspecies, only using first letter of sex and species
+# plot_simulations(num_simulations, sex, species)
+
+plot_fm <- plot_simulations(100000, 'f', 'Dmel')
+plot_mm <- plot_simulations(100000, 'm', 'Dmel')
+
+plot_fs <- plot_simulations(100000, 'f', 'Dsim')
+plot_ms <- plot_simulations(100000, 'm', 'Dsim')
+
+plot_fy <- plot_simulations(100000, 'f', 'Dyak')
+plot_my <- plot_simulations(100000, 'm', 'Dyak')
+
+plot <- plot_grid(plot_fm+theme(plot.margin = unit(c(15,5,5,5), "points"))
+                  ,plot_mm+theme(plot.margin = unit(c(15,5,5,5), "points"))
+                  ,plot_fs+theme(plot.margin = unit(c(15,5,5,5), "points"))
+                  ,plot_ms+theme(plot.margin = unit(c(15,5,5,5), "points"))
+                  ,plot_fy+theme(plot.margin = unit(c(15,5,5,5), "points"))
+                  ,plot_my+theme(plot.margin = unit(c(15,5,5,5), "points"))
+                  ,nrow = 3,labels = c('D. melanogaster', '', 'D. simulans', '', 'D. yakuba', ''))
+
+ggsave('Paper_figures_revision/Figure_2_test.pdf', plot=plot, width = 8, height=8)
+
+```
+
+To find the one to one orthologs used in several figures in the downstream analysis we need to run the following chunk. A copy of the code in this chunk is located in the file get_one_one_orthologs.R. This relies on a orthologs files downloaded from flybase.
+
+```{r}
+# load orthologs file
+mapping <- read.delim('Evolution_of_Sex_Bias/dmel_orthologs_in_drosophila_species_fb_2018_05.tsv',
+                      header = T, stringsAsFactors = FALSE)
+
+mel_genes <- unique(mapping$X...FBgn_ID)
+mel_ortho <- c()
+yak_ortho <-c()
+sim_ortho <-c()
+for (m_gene in mel_genes){
+  ortho_sym <- mapping[mapping$X...FBgn_ID == m_gene, "Ortholog_GeneSymbol"]
+  # find which orthologs correspond to dyak and dsim
+  dyak_n <- startsWith(ortho_sym, "Dyak")
+  dsim_n<- startsWith(ortho_sym, "Dsim")
+  # ortholog FBGn
+  ortho_fb <- mapping[mapping$X...FBgn_ID == m_gene, "Ortholog_FBgn_ID"]
+  dyak_fb <- ortho_fb[dyak_n]
+  dsim_fb <- ortho_fb[dsim_n]
+  if(sum(dyak_n) == 1 & sum(dsim_n) == 1){
+    # this makes sure that the yakuba and simulans orthologs
+    # are only orthologs of a single melanogaster gene
+    if(sum(mapping$Ortholog_FBgn_ID == dyak_fb) == 1 & sum(mapping$Ortholog_FBgn_ID == dsim_fb) == 1){
+      mel_ortho <- append(mel_ortho,m_gene)
+      yak_ortho <- append(yak_ortho,dyak_fb)
+      sim_ortho <- append(sim_ortho,dsim_fb)
+  }
+}
+}
+
+orthologs <- data.frame(Dmel = mel_ortho,Dsim = sim_ortho,Dyak =yak_ortho)
+
+
+write.csv(orthologs,'Evolution_of_Sex_Bias/one_one_orthologs_mel_yak_sim.csv',row.names = F)
+```
+The following code analyzes the turnover of sex-biased expression between the three species. The output of the code should be figure 3 in the manuscript.
+
+```{r}
+
+source('Code/sex_bias_turnover.R')
+library(ggplot2)
+library(RColorBrewer)
+
+ref_gtf <- makeTxDbFromGFF("../refgtfs/dmel-all-r6.24.gtf")
+gen <- genes(ref_gtf)
+gen_df <- as.data.frame(gen)
+
+
+
+x <- gen_df[grepl('X',gen_df$seqnames),'gene_id']
+a <- gen_df[grepl('2L',gen_df$seqnames) |
+              grepl('2R',gen_df$seqnames) |
+              grepl('3L',gen_df$seqnames) |
+              grepl('3R',gen_df$seqnames) |
+              gen_df$seqnames == '4','gene_id']
+
+turnover <- analyze_turnover()
+male_1 <- turnover$male_1
+male_2 <- turnover$male_2
+male_3 <- turnover$male_3
+female_1 <- turnover$female_1
+female_2 <- turnover$female_2
+female_3 <- turnover$female_3
+switched <- turnover$switched
+
+# write genes to file
+#write conserved genes to file
+write.csv(data.frame(gene_id = male_3),'Evolution_of_Sex_Bias/Conservation/genes_3sp_male.txt',
+          quote = FALSE, row.names = FALSE)
+write.csv(data.frame(gene_id = female_3),'Evolution_of_Sex_Bias/Conservation/genes_3sp_female.txt',
+          quote = FALSE, row.names = FALSE)
+#write single species genes to file
+write.csv(data.frame(gene_id = male_1),'Evolution_of_Sex_Bias/Conservation/genes_1sp_male.txt',
+          quote = FALSE, row.names = FALSE)
+write.csv(data.frame(gene_id = female_1),'Evolution_of_Sex_Bias/Conservation/genes_1sp_female.txt',
+          quote = FALSE, row.names = FALSE)
+
+# write 2 species species genes to file
+write.csv(data.frame(gene_id = male_2), 'Evolution_of_Sex_Bias/Conservation/genes_2sp_male.txt',
+          quote = FALSE, row.names = FALSE)
+write.csv(data.frame(gene_id = female_2), 'Evolution_of_Sex_Bias/Conservation/genes_2sp_female.txt',
+          quote = FALSE, row.names = FALSE)
+
+# get dataframes ready for plotting
+# total number of male genes
+num_m <- length(male_1) + length(male_2) + length(male_3) + length(switched)
+# fraction of total in each category
+fraction_m <- c(length(male_1),length(male_2),length(male_3),length(switched))/num_m
+# fraction on the X chrom
+x_m <- (c(sum(male_1 %in% x),sum(male_2 %in% x),
+          sum(male_3 %in% x), sum(switched %in% x))/(num_m*fraction_m))
+
+male_df <- data.frame(fraction = fraction_m,
+                      fraction_x = x_m, 
+                      num_sp = c("One","Two","Three","Switched"),
+                      sex= "Male-biased")
+
+male_df$num_sp <- factor(male_df$num_sp,levels = c("One","Two","Three","Switched"))
+
+# number female-biased
+num_f <- length(female_1) + length(female_2) + length(female_3) + length(switched)
+
+fraction_f <- c(length(female_1), length(female_2), length(female_3), length(switched))/num_f
+
+x_f <- (c(sum(female_1 %in% x),sum(female_2 %in% x),
+          sum(female_3 %in% x), sum(switched %in% x))/(num_f*fraction_f))
+
+female_df <- data.frame(fraction = fraction_f,
+                        fraction_x = x_f,
+                        num_sp = c("One","Two","Three","Switched"),
+                        sex= "Female-biased")
+
+female_df$num_sp <- factor(female_df$num_sp,levels = c("One","Two","Three","Switched"))
+
+
+
+plot_tot <- ggplot(rbind(male_df, female_df), aes(num_sp, fraction, fill=num_sp)) + geom_col() + xlab('Number of species') + ylab('Fraction of \nsex-biased genes') + theme_classic() + theme(legend.position = "none")+  facet_grid(. ~ sex) + scale_fill_brewer(palette="Dark2")
+
+plot_x <- ggplot(rbind(male_df, female_df), aes(num_sp, fraction_x, fill=num_sp)) + geom_col()+ xlab('Number of species') + ylab('Fraction of genes\nin each class \non X Chromosome') + theme_classic()+ theme(legend.position = "none")+  facet_grid(. ~ sex)+  scale_fill_brewer(palette="Dark2")
+
+plot_final <- plot_grid(plot_tot, plot_x, nrow = 2, labels = c("A", "B"))
+plot_final
+
+ggsave('Paper_figures_revision/Figure_3_test.pdf', plot_final, height=5, width=5)
+
+
+
+```
+The next code chunk loads the TPM expression data into a data frame for each species. This relies on code from
+the file load_expression_data.R. Look there for more details. This chunk then saves the dataframes to csv files.
+
+```{r}
+
+# Load in TPM or FPKM data into DF.
+library(stringr)
+
+rm(list=ls(all=TRUE))
+
+# function to load expression data
+load_exp_data <- function(directory){
+  list <- list.files(directory)
+  n <- 0
+  for (s in list){
+    n <- n + 1
+    print(n)
+    data <- read.delim(paste0(directory, '/', s, '/gene_abund.txt'),
+                       header = TRUE, stringsAsFactors = F)
+    # if there are multiple instances of a given gene sum TPM across. This is very rare
+    tpm_aggregated <- aggregate(data$TPM, by=list(Gene.ID=data$Gene.ID), FUN=sum)
+    colnames(tpm_aggregated) <- c("genes", s)
+    if (n == 1){
+      tpm_all <- tpm_aggregated
+    }
+    else{
+      tpm_all <- merge(tpm_all, tpm_aggregated, by = "genes")
+    }
+   }
+  return(tpm_all)
+}
+
+tpm_mel <- load_exp_data('../Known_Gene_Exp_dmel')
+tpm_yak <- load_exp_data('../Known_Gene_Exp_dyak')
+tpm_sim <- load_exp_data('../Known_Gene_Exp_dsim')
+
+write.csv(tpm_mel,'Dmel/all_genes_tpm_dmel_sum.csv',quote = F, row.names = F)
+write.csv(tpm_sim,'Dsim/all_genes_tpm_dsim_sum.csv',quote = F, row.names = F)
+write.csv(tpm_yak,'Dyak/all_genes_tpm_dyak_sum.csv',quote = F, row.names = F)
+
+```
+
+
+The following several chunks run the anova analysis for figure 4 and several other figures in the manuscript. 
+
+Generate SAS input for ANOVA. All SAS analysis was run in directory SASUniversityEdition/myfolders/
+```{r}
+source('Code/anova_analysis.R')
+
+#load expression data
+
+dmel_tpm <- load_ortho_exp('Dmel')
+dsim_tpm <- load_ortho_exp('Dsim')
+dyak_tpm <- load_ortho_exp('Dyak')
+
+#TMM normalize expression data
+normalized <- normalize(dmel_tpm, dsim_tpm, dyak_tpm )
+dmel_tpm <- normalized[["dmel_tpm"]]
+dsim_tpm <- normalized[["dsim_tpm"]]
+dyak_tpm <- normalized[["dyak_tpm"]]
+
+#__split into male and female samples
+dmel <- split_malefemale(dmel_tpm)
+dmel_m <- dmel$male
+dmel_f <- dmel$female
+
+dsim <- split_malefemale(dsim_tpm)
+dsim_m <- dsim$male
+dsim_f <- dsim$female
+
+dyak <- split_malefemale(dyak_tpm)
+dyak_m <- dyak$male
+dyak_f <- dyak$female
+##Write Expression Tables for SAS Analysis
+#for male expression
+generate_sas_input(dmel_m, dsim_m, dyak_m, sex= "male")
+generate_sas_input(dmel_f, dsim_f, dyak_f, sex= "female")
+```
+
+First run SAS ANOVA analysis then process the output
+```{r}
+source('Code/anova_analysis.R')
+
+# load male data
+sas_anova_male <- read.table('SASUniversityEdition/myfolders/anova_output/anova_output_male.txt',header = T, stringsAsFactors = F)
+genelist_male <- read.table('SASUniversityEdition/myfolders/anova_output/genelist_male.txt',header = T, stringsAsFactors = F)
+colnames(genelist_male) <- "gene_id"
+anova_mal <- cbind(genelist_male, sas_anova_male)
+# 
+anova_mal$MSR <- anova_mal$MS_sp/anova_mal$MS_st
+
+# load female data
+sas_anova_female <- read.table('SASUniversityEdition/myfolders/anova_output/anova_output_female.txt',header = T, stringsAsFactors = F)
+genelist_female <- read.table('SASUniversityEdition/myfolders/anova_output/genelist_female.txt',header = T, stringsAsFactors = F)
+colnames(genelist_female) <- "gene_id"
+anova_fem <- cbind(genelist_female, sas_anova_female)
+anova_fem$MSR <- anova_fem$MS_sp/anova_fem$MS_st
+
+#load expression data
+dmel_tpm <- load_ortho_exp('Dmel')
+dsim_tpm <- load_ortho_exp('Dsim')
+dyak_tpm <- load_ortho_exp('Dyak')
+
+#normalize expression data
+normalized <- normalize(dmel_tpm,dsim_tpm, dyak_tpm )
+dmel_tpm <- normalized[["dmel_tpm"]]
+dsim_tpm <- normalized[["dsim_tpm"]]
+dyak_tpm <- normalized[["dyak_tpm"]]
+
+#__split into male and female samples
+dmel <- split_malefemale(dmel_tpm)
+dmel_m <- dmel$male
+dmel_f <- dmel$female
+
+dsim <- split_malefemale(dsim_tpm)
+dsim_m <- dsim$male
+dsim_f <- dsim$female
+
+dyak <- split_malefemale(dyak_tpm)
+dyak_m <- dyak$male
+dyak_f <- dyak$female
+
+####____Append Normalized TPM values to the ANOVA dataframes
+anova_mal <- append_tpm(anova_mal, dmel_m, dsim_m, dyak_m)
+anova_fem <- append_tpm(anova_fem, dmel_f, dsim_f, dyak_f)
+
+##___Only save ANOVA data for genes which have a median TPM>1 in at least 1 species
+anova_mal <- anova_mal[apply(as.matrix(anova_mal[,c("TPM_dmel", "TPM_dsim", "TPM_dyak")]), 1, max)>1,]
+anova_fem <- anova_fem[apply(as.matrix(anova_fem[,c("TPM_dmel", "TPM_dsim", "TPM_dyak")]), 1, max)>1,]
+
+
+ write.csv(anova_mal[order(anova_mal$MSR, decreasing = TRUE),],'Evolution_of_Sex_Bias/Expression_Evolution/anova_male_yak_mel_sim.csv',row.names = F)
+ write.csv(anova_fem[order(anova_fem$MSR, decreasing = TRUE),],'Evolution_of_Sex_Bias/Expression_Evolution/anova_female_yak_mel_sim.csv',row.names = F)
+
+```
+
+
+
+Plot the outputs from the ANOVA analysis. Compare median mean squared ratios to genome-wide averages. These plots correspond to figure 4 in the manuscript.
+
+```{r}
+source('Code/anova_analysis.R')
+#correlate MS ratio between males and females
+corr_plot <- correlation_plots()
+# 
+plot_MSR <- simsig_plots('MSR', 14, numsim = 1000000)
+
+plot <- plot_grid(plot_MSR,corr_plot, labels = c('A', 'B'), nrow = 2, scale = c(1, 1))+ scale_fill_brewer(palette="Dark2")
+
+ggsave('Paper_figures_revision/Figure_4.pdf',plot,height = 10, width = 7.5)
+
+```
+
+
+Run the population genetics analysis for sex-biased genes. 
+Analyze the nucleotide diversity analysis comparing various classes of genes (fig 5 in manuscript).
+Here sex-biased genes are defined in melanogaster. In our revised version of the manuscript we used the entire DGRP freeze 2 data set
+to calculate PI. PI was calculated using vcftools and the coordinates were then converted from version 5 to version 6 using flybase.
+
+```{r}
+source('Code/pi_analysis.R')
+library(cowplot)
+
+#load in nucleotide diversity data. 
+pi_file <- 'Dmel_PopData/VCFtools_analysis/window500.windowed.pi_goodcoords'
+pi <- read_in_PIdata(pi_file)
+##load expressed genes
+exp <- read.csv('Dmel/genes_with_finite_p_val.txt', stringsAsFactors = FALSE)
+exp <- exp$Gene.ID
+gtf <- makeTxDbFromGFF("../refgtfs/dmel-all-r6.24.gtf")
+gen <- genes(gtf)
+gen_df <- as.data.frame(gen)
+
+##_________Define gene lists
+# sex-biased genes
+sbg_mel <- read.csv('Dmel/sex_biased_genes_dmel.txt', stringsAsFactors = FALSE)
+m <- sbg_mel$gene_id[sbg_mel$sex == 'm']
+f <- sbg_mel$gene_id[sbg_mel$sex == 'f']
+u <- exp[!(exp %in% sbg_mel$gene_id)]
+
+# load anova data
+anova_mal <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_male_yak_mel_sim.csv', stringsAsFactors = FALSE)
+anova_fem <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_female_yak_mel_sim.csv', stringsAsFactors = FALSE)
+
+
+# consider genes to be highly diverged if their MS ratio is in the top 5% genome-wide
+anova_mal <- anova_mal[order(anova_mal$MSR, decreasing = TRUE),]
+anova_fem <- anova_fem[order(anova_fem$MSR, decreasing = TRUE),]
+num_div_m <- round(dim(anova_mal)[1]*.05)
+num_div_f <- round(dim(anova_fem)[1]*.05)
+# consider only genes which are highly diverged in either males and females to be diverged. Genes which are undiverged
+##in both males and females are considered undiverged
+
+div_m <- anova_mal$gene_id[c(1:num_div_m)]
+div_f <- anova_fem$gene_id[c(1:num_div_f)]
+
+div <- unique(c(div_m,div_f))
+#conserved genes are not diverged in either sex
+cons_m <-anova_mal$gene_id[!(anova_mal$gene_id %in% div)]
+cons_f <- anova_fem$gene_id[!(anova_fem$gene_id %in% div)]
+cons <- intersect(cons_m,cons_f)
+
+###_______________ Run analysis on each gene class
+
+# plot A: nucleotide diversity near sex-biased genes
+# Run X chromosome analysis 
+data_x <- combine_pi_glists(list(m, f, u),
+                            list("Male", "Female", "Unbiased"),
+                            chroms = "X",
+                            pi, exp, gen_df)
+data_x$loc <- "X Chromosome"
+# Run Autosome analysis
+autosomes <- c("2L","2R","3L","3R","4")
+data_a <- combine_pi_glists(list(m, f, u),
+                            list("Male", "Female", "Unbiased"),
+                            chroms = autosomes,
+                            pi, exp, gen_df)
+data_a$loc <- "Autosomes"
+
+data_plot_A <- rbind(data_x, data_a)
+data_plot_A$type <- factor(data_plot_A$type, 
+                           levels = c("Male", "Female", "Unbiased"))
+# plot B: nucleotide diversity near "diverged" and "conserved" genes
+data_x <- combine_pi_glists(list(div, cons),
+                            list("Diverged", "Conserved"),
+                            chroms = "X",
+                            pi, exp, gen_df)
+data_x$loc <- "X Chromosome"
+# Run Autosome analysis
+data_a <- combine_pi_glists(list(div, cons),
+                            list("Diverged", "Conserved"),
+                            chroms = autosomes,
+                            pi, exp, gen_df)
+data_a$loc <- "Autosomes"
+
+data_plot_B <- rbind(data_x, data_a)
+data_plot_B$type <- factor(data_plot_B$type, levels = c("Diverged","Conserved"))
+
+# plot C: nucleotide diversity near diverged sex-biased genes
+data_x <- combine_pi_glists(list(m[m %in% div], 
+                                 f[f %in% div],
+                                 u[u %in% div]),
+                            list("Male", "Female", "Unbiased"),
+                            chroms = "X",
+                            pi, exp, gen_df)
+data_x$loc <- "X Chromosome"
+# Run Autosome analysis
+data_a <- combine_pi_glists(list(m[m %in% div], 
+                                 f[f %in% div],
+                                 u[u %in% div]),
+                            list("Male", "Female", "Unbiased"),
+                            chroms = autosomes,
+                            pi, exp, gen_df)
+data_a$loc <- "Autosomes"
+
+data_plot_C <- rbind(data_x, data_a)
+data_plot_C$type <- factor(data_plot_C$type, 
+                           levels = c("Male", "Female", "Unbiased"))
+
+# Male plots.
+ylabel <- expression(pi)
+plot_a <-ggplot(data_plot_A, aes(x = start, y=pi, color = type )) + 
+  geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs"),method.args = list(family = Gamma(link = 'log'))) + ylab(ylabel) + xlab("Distance from gene (kb)") +
+  theme_classic()+ theme(legend.title = element_blank())+ scale_x_continuous(breaks = c(-20000,-10000,0,10000,20000),labels=c("-20","-10","0","10","20")) + facet_wrap(~loc,scales = "free")
+
+plot_b <-ggplot(data_plot_B, aes(x = start, y=pi, color = type )) + 
+  geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs"),method.args = list(family = Gamma(link = 'log'))) + ylab(ylabel) + xlab("Distance from gene (kb)") +
+  theme_classic()+ theme(legend.title = element_blank())+ scale_x_continuous(breaks = c(-20000,-10000,0,10000,20000),labels=c("-20","-10","0","10","20")) + facet_wrap(~loc,scales = "free")
+
+plot_c <-ggplot(data_plot_C, aes(x = start, y=pi, color = type )) + 
+  geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs"),method.args = list(family = Gamma(link = 'log'))) + ylab(ylabel) + xlab("Distance from gene (kb)") +
+  theme_classic()+ theme(legend.title = element_blank())+ scale_x_continuous(breaks = c(-20000,-10000,0,10000,20000),labels=c("-20","-10","0","10","20")) + facet_wrap(~loc,scales = "free")
+plot <- plot_grid(plot_a,plot_b,plot_c,labels = c('A','B','C'),nrow = 3)
+
+ggsave('Paper_figures_revision/Figure_5.pdf',plot,height=8,width=7)
+
+
+```
+
+
+
+Calculate tissue specificity TAU for figure 6 and other figures.
+
+```{r}
+source('Code/oliver_data_analysis.R')
+
+# calculate tau for D.mel
+med_exp_dmel <- exp_across_tis('Dmel')
+male_exp <- med_exp_dmel$male
+female_exp <- med_exp_dmel$female
+
+male_tau <- data.frame(gene_id=male_exp$Gene.ID, tau=apply(male_exp[, c(2:6)], 1, tau))
+female_tau <- data.frame(gene_id=female_exp$Gene.ID, tau=apply(female_exp[, c(2:6)], 1, tau))
+write.csv(male_tau, 'Tissue_Specificity/dmel_male_tau.csv',row.names = F)
+write.csv(female_tau, 'Tissue_Specificity/dmel_female_tau.csv',row.names = F)
+
+
+# calculate tau for D. yak
+med_exp_dyak <- exp_across_tis('Dyak')
+male_exp <- med_exp_dyak$male
+female_exp <- med_exp_dyak$female
+
+male_tau <- data.frame(gene_id=male_exp$Gene.ID, tau=apply(male_exp[, c(2:6)], 1, tau))
+male_tau$gene_id <- convert_geneids(male_tau$gene_id)
+
+female_tau <- data.frame(gene_id=female_exp$Gene.ID, tau=apply(female_exp[, c(2:6)], 1, tau))
+female_tau$gene_id <- convert_geneids(female_tau$gene_id)
+
+write.csv(male_tau,'Tissue_Specificity/dyak_male_tau.csv',row.names = F)
+write.csv(female_tau,'Tissue_Specificity/dyak_female_tau.csv',row.names = F)
+
+
+
+```
+
+
+
+
+Plot correlations between ANOVA MS ratio and Tau. This corresponds to figure 6 in the manuscript
+
+```{r}
+source('Code/oliver_data_analysis.R')
+
+#load Tau data calculated in previous chunk
+tau_yak <- load_tau('dyak')
+tau_f_yak <- tau_yak$female_tau
+tau_m_yak <- tau_yak$male_tau
+
+tau_mel <- load_tau('dmel')
+tau_f_mel <- tau_mel$female_tau
+tau_m_mel <- tau_mel$male_tau
+
+
+#load anova data
+anova_mal <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_male_yak_mel_sim.csv', stringsAsFactors = FALSE)
+anova_fem <- read.csv('Evolution_of_Sex_Bias/Expression_Evolution/anova_female_yak_mel_sim.csv', stringsAsFactors = FALSE)
+#merge tau data with anova data
+data_m_mel <- merge(tau_m_mel,anova_mal,by = "gene_id")
+data_f_mel <- merge(tau_f_mel,anova_fem,by = "gene_id")
+
+
+data_m_yak <- merge(tau_m_yak,anova_mal,by = "gene_id")
+data_f_yak <- merge(tau_f_yak,anova_fem,by = "gene_id")
+
+#correlation between F and tau
+plot_a <- msr_v_tau_plot(data_f_mel,'MSR','Female','Dmel')
+plot_b <- msr_v_tau_plot(data_m_mel,'MSR','Male','Dmel') 
+plot_c <- msr_v_tau_plot(data_f_yak,'MSR','Female','Dyak')
+plot_d <- msr_v_tau_plot(data_m_yak,'MSR','Male','Dyak') 
+
+
+plot <- plot_grid(plot_a, plot_b, plot_c, plot_d,align = T, nrow = 2,
+                  labels = c('A','B','C','D'), label_size = 12)
+
+ggsave('Paper_figures_revision/Figure_6_test.pdf',plot,height = 8, width = 8)
+
+```
+
+
+
+
+Comparison of shared genetic constraint between X chromosome and Autosomes. Figure 7 in the manuscript.
+
+```{r}
+source('Code/genetic_constraint.R')
+#load sex-bias data
+exp <- read.csv('Dmel/total_DESeq_output.txt', header = T, stringsAsFactors = F)
+#load expression data
+dmel_tpm <- read.csv('Dmel/all_genes_tpm_dmel_sum.csv',header = T, stringsAsFactors = F)
+dmel_tpm <- dmel_tpm[dmel_tpm$genes %in% exp$gene_id,]
+#TMM normalize the data
+dmel_tpm <- normalize(dmel_tpm)
+
+
+#split male and female data
+dmel <- split_malefemale(dmel_tpm)
+dmel_m <- dmel$male
+dmel_f <- dmel$female
+
+
+# get strain median expression
+dmel_f <- get_med_exp(dmel_f)
+dmel_m <- get_med_exp(dmel_m)
+
+# get sex-biased genes in D. melanogaster
+#sbg <- read.csv('Dmel/sex_biased_genes_dmel.txt', header = T, stringsAsFactors = F)
+male_x <- exp$gene_id[exp$sex == 'm' & (exp$region == 'X')]
+female_x <- exp$gene_id[exp$sex == 'f'& (exp$region == 'X')]
+
+male_a <- exp$gene_id[exp$sex == 'm' & (exp$region == 'A')]
+female_a <- exp$gene_id[exp$sex == 'f'  & (exp$region == 'A')]
+
+
+
+# get genetic correlations for various gene classes
+c_m_x <- sapply(male_x, cor_gene, data_f = dmel_f, data_m = dmel_m)
+c_f_x <- sapply(female_x, cor_gene, data_f = dmel_f, data_m = dmel_m)
+# 
+c_m_a <- sapply(male_a, cor_gene, data_f = dmel_f, data_m = dmel_m)
+c_f_a <- sapply(female_a, cor_gene, data_f = dmel_f, data_m = dmel_m)
+# 
+
+# make dataframes for plotting
+data_df <- rbind(data.frame(r = c_m_x, type = 'Male X'),
+                 data.frame(r = c_m_a, type = 'Male A'),
+                 data.frame(r = c_f_x, type = 'Female X'),
+                 data.frame(r = c_f_a, type = 'Female A'))
+p_vals <- c(wilcox.test(c_m_x, mu=0), wilcox.test(c_m_a ,mu=0), wilcox.test(c_f_x, mu=0), wilcox.test(c_f_a,mu=0))
+
+plot <- ggplot(data_df,aes(y = r,x=type,fill=type)) + geom_boxplot() + theme_classic()+ theme(legend.position = "none")+
+  geom_hline(yintercept=0,color='red') + scale_fill_brewer(palette="Dark2") + xlab('') + ylab('Genetic correlation') + coord_flip() 
+
+
+ggsave('Paper_figures_revision/Figure_7_test.pdf',plot,height = 3, width = 5)
+
+
+```
+
+
+
