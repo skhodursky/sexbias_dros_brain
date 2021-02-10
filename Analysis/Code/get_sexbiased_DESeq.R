@@ -66,7 +66,7 @@ run_DESeq <- function(species, signif, counts_mat, exp_folder){
   # Use a sample from the species to get the unique list of genes
   sample <- pheno_data$Ids[2]
   sample_data <- read.delim(paste0('../',exp_folder,species,'/',sample,'/gene_abund.txt'),sep='\t')
-  sample_data <- as.data.frame(unique(sample_data[sample_data$Gene.ID ,c('Gene.ID','Reference')]))
+  sample_data <- as.data.frame(unique(sample_data[, c('Gene.ID','Reference')]))
   colnames(sample_data) <- c("gene_id","seqnames")
   # sbg_df will be the final dataframe that contains the sex-biased genes and relevant info
   sbg_df <- merge(sample_data, sex_biased_genes, by = "gene_id")
@@ -86,7 +86,7 @@ run_DESeq <- function(species, signif, counts_mat, exp_folder){
   resOrdered$region[grepl('X', resOrdered$seqnames)] <- 'X'
   
   #
-  write.csv(sample_data[sample_data$gene_id %in% rownames(resOrdered),],
+  write.csv(sample_data[sample_data$gene_id %in% resOrdered$gene_id,],
             file = paste0(species,'/genes_with_finite_p_val.txt'),quote = F,row.names = F)
   write.csv(sbg_df, file = paste0(species,'/sex_biased_genes_',species,'.txt'))
   write.csv(resOrdered, file = paste0(species,'/total_DESeq_output.txt'))
